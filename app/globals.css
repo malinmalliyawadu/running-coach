@@ -1,26 +1,204 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #0a1214;
+  --ink-2: #0e191c;
+  --panel: #111e22;
+  --panel-2: #15252a;
+  --line: rgba(123, 224, 206, 0.12);
+  --line-strong: rgba(123, 224, 206, 0.28);
+  --paper: #ece4d4;
+  --paper-dim: #9fae9f;
+  --paper-faint: #5f7268;
+  --glacier: #7be0ce;
+  --glacier-deep: #2ea18d;
+  --coral: #ff7a59;
+  --gold: #d9a441;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* next/font variables are set on <body>, so compose the aliases there */
+body {
+  --font-display: var(--font-bricolage), serif;
+  --font-body: var(--font-schibsted), sans-serif;
+  --font-mono: var(--font-spline-mono), monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(46, 161, 141, 0.14), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(255, 122, 89, 0.07), transparent 55%),
+    var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Topographic contour texture, like a trail map of the Remarkables */
+.topo-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700' viewBox='0 0 700 700'%3E%3Cg fill='none' stroke='%237be0ce' stroke-opacity='0.05' stroke-width='1.2'%3E%3Cpath d='M100 350c0-140 110-250 250-250s250 110 250 250-110 250-250 250S100 490 100 350z'/%3E%3Cpath d='M150 350c0-112 88-200 200-200s200 88 200 200-88 200-200 200-200-88-200-200z'/%3E%3Cpath d='M205 340c0-84 61-150 145-150s155 66 155 150-71 160-155 160-145-76-145-160z'/%3E%3Cpath d='M260 330c0-56 34-100 90-100s110 44 110 100-54 120-110 120-90-64-90-120z'/%3E%3Cpath d='M310 325c0-30 14-55 40-55s70 25 70 55-44 80-70 80-40-50-40-80z'/%3E%3Cpath d='M-60 620c80-40 180-30 260 10s200 50 280 10 160-60 280-20'/%3E%3Cpath d='M-60 660c80-40 180-30 260 10s200 50 280 10 160-60 280-20'/%3E%3Cpath d='M-60 60c100 30 200 10 280-30s200-40 280 0 140 50 260 20'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 700px 700px;
+}
+
+/* Film grain */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  background: linear-gradient(160deg, var(--panel) 0%, var(--ink-2) 100%);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  position: relative;
+}
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(236, 228, 212, 0.03), transparent 30%);
+}
+
+.label-caps {
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--paper-faint);
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--glacier);
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+  padding: 0.7rem 1.4rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: #93eddd;
+  box-shadow: 0 4px 24px rgba(123, 224, 206, 0.25);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  border: 1px solid var(--line-strong);
+  color: var(--paper-dim);
+  border-radius: 3px;
+  padding: 0.55rem 1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  color: var(--glacier);
+  border-color: var(--glacier);
+}
+
+.input-field {
+  background: rgba(10, 18, 20, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--paper);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-field:focus {
+  outline: none;
+  border-color: var(--glacier-deep);
+  box-shadow: 0 0 0 3px rgba(123, 224, 206, 0.1);
+}
+.input-field::placeholder {
+  color: var(--paper-faint);
+}
+
+select.input-field {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235f7268'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+}
+
+input[type="date"].input-field::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(0.3) hue-rotate(110deg);
+  cursor: pointer;
+}
+
+/* Staggered page-load reveal */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.rise-1 { animation-delay: 0.05s; }
+.rise-2 { animation-delay: 0.15s; }
+.rise-3 { animation-delay: 0.25s; }
+.rise-4 { animation-delay: 0.35s; }
+.rise-5 { animation-delay: 0.45s; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.pulse-dot {
+  animation: pulse-dot 2.4s ease-in-out infinite;
+}
+
+::selection {
+  background: rgba(123, 224, 206, 0.3);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ink);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--panel-2);
+  border-radius: 5px;
 }

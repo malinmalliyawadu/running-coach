@@ -8,6 +8,7 @@ import { ForecastTrendChart, WeeklyVolumeChart } from "@/components/Charts";
 import { RunForm } from "@/components/RunForm";
 import { RunList } from "@/components/RunList";
 import { PlanPanel } from "@/components/PlanPanel";
+import { AnalyzeButton } from "@/components/AnalyzeButton";
 
 function Dashboard() {
   const { hydrated } = useStore();
@@ -45,7 +46,10 @@ function Dashboard() {
             <RunForm />
           </section>
           <section className="panel p-6">
-            <h2 className="font-display mb-3 text-lg font-semibold">Training log</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold">Training log</h2>
+              <AnalyzeButton />
+            </div>
             <RunList />
           </section>
         </div>

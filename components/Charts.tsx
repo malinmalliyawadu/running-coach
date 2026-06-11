@@ -72,6 +72,8 @@ export function ForecastTrendChart() {
               fontSize: 12,
               fontFamily: "var(--font-mono)",
             }}
+            labelStyle={{ color: "var(--paper-dim)" }}
+            itemStyle={{ color: "var(--paper)" }}
             labelFormatter={(d) => formatDateShort(String(d))}
             formatter={(value, name) => {
               if (Array.isArray(value)) {
@@ -132,6 +134,8 @@ export function WeeklyVolumeChart() {
               fontSize: 12,
               fontFamily: "var(--font-mono)",
             }}
+            labelStyle={{ color: "var(--paper-dim)" }}
+            itemStyle={{ color: "var(--paper)" }}
             formatter={(value) => [`${Number(value)} km`, "volume"]}
           />
           <Bar dataKey="km" radius={[2, 2, 0, 0]} isAnimationActive={false}>

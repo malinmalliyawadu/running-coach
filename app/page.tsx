@@ -7,6 +7,7 @@ import { StatsGrid } from "@/components/StatsGrid";
 import { ForecastTrendChart, WeeklyVolumeChart } from "@/components/Charts";
 import { RunForm } from "@/components/RunForm";
 import { RunList } from "@/components/RunList";
+import { PlanPanel } from "@/components/PlanPanel";
 
 function Dashboard() {
   const { hydrated } = useStore();
@@ -19,6 +20,7 @@ function Dashboard() {
       <main className="space-y-6 px-6 pt-10 md:px-10">
         <ForecastPanel />
         <StatsGrid />
+        <PlanPanel />
 
         <div className="rise rise-4 grid gap-6 lg:grid-cols-2">
           <section className="panel p-6">

@@ -48,21 +48,48 @@ function daysBetween(aISO: string, bISO: string): number {
   return (new Date(bISO + "T12:00:00").getTime() - new Date(aISO + "T12:00:00").getTime()) / 86_400_000;
 }
 
-/** Average weekly km over the 6 weeks before `asOf`. */
+/**
+ * Recency-weighted weekly volume over the 6 weeks before `asOf`.
+ *
+ * A flat mean (total ÷ 6) badly understates a runner mid-ramp: when most of the
+ * km sit in the last week or two, the near-empty early weeks halve the average
+ * and the model reads a far smaller endurance base than the runner actually has.
+ * Instead each week is weighted by recency (10-day half-life) so the figure
+ * tracks current training load, and the average spans only from the first run in
+ * the window — weeks before the block began don't dilute it.
+ */
 export function weeklyVolumeKm(runs: Run[], asOf: string): number {
-  const windowDays = 42;
-  const total = runs
-    .filter((r) => {
-      const d = daysBetween(r.date, asOf);
-      return d >= 0 && d <= windowDays;
-    })
-    .reduce((sum, r) => sum + r.distanceKm, 0);
-  return total / 6;
+  const WEEKS = 6;
+  const WEEK_DECAY = Math.pow(0.5, 7 / 10); // 10-day half-life, applied per week
+  const km = new Array<number>(WEEKS).fill(0);
+  for (const r of runs) {
+    const d = daysBetween(r.date, asOf);
+    if (d < 0 || d >= WEEKS * 7) continue;
+    km[Math.floor(d / 7)] += r.distanceKm;
+  }
+
+  let lastActive = -1;
+  for (let i = 0; i < WEEKS; i++) if (km[i] > 0) lastActive = i;
+  if (lastActive < 0) return 0;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i <= lastActive; i++) {
+    const w = Math.pow(WEEK_DECAY, i);
+    num += km[i] * w;
+    den += w;
+  }
+  return num / den;
 }
 
-/** Riegel exponent adapted to training volume: 1.10 at ≤30 km/wk down to 1.05 at ≥80 km/wk. */
+/**
+ * Riegel exponent adapted to training volume: more mileage means less fade over
+ * the marathon distance. Slopes smoothly from 1.10 at ≤12 km/wk down to 1.05 at
+ * ≥80 km/wk — the old curve was flat at 1.10 below 30 km/wk, a dead zone that
+ * gave a 28 km/wk runner the same fade penalty as a 10 km/wk one.
+ */
 function riegelExponent(weeklyKm: number): number {
-  const k = 1.1 - ((weeklyKm - 30) * 0.05) / 50;
+  const k = 1.1 - ((weeklyKm - 12) * 0.05) / 68;
   return Math.min(1.1, Math.max(1.05, k));
 }
 

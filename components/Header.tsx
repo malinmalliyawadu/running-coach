@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { useStore } from "./RunsProvider";
 import { formatDateLong, parseDuration, formatDuration } from "@/lib/format";
 
+// Client-only "current time" that ticks on an interval. Returns null during SSR
+// and the first client render (keeping server/client HTML consistent), then the
+// real time once subscribed. Reads come from a ref so each tick yields a stable
+// snapshot reference, which useSyncExternalStore requires.
+function useNow(intervalMs: number): Date | null {
+  const nowRef = useRef<Date | null>(null);
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      nowRef.current = new Date();
+      onChange();
+      const t = setInterval(() => {
+        nowRef.current = new Date();
+        onChange();
+      }, intervalMs);
+      return () => clearInterval(t);
+    },
+    [intervalMs]
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => nowRef.current,
+    () => null
+  );
+}
+
 function useCountdown(raceDate: string) {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useNow(60_000);
   if (!now) return null;
   const race = new Date(raceDate + "T07:00:00");
   const ms = race.getTime() - now.getTime();

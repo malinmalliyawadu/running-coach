@@ -1,11 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
-import { Run, Settings, DEFAULT_SETTINGS } from "@/lib/types";
-import { generateSampleRuns } from "@/lib/sample";
-
-const RUNS_KEY = "qt-marathon-runs-v1";
-const SETTINGS_KEY = "qt-marathon-settings-v1";
+import { createContext, useContext, ReactNode, useSyncExternalStore } from "react";
+import { Run, Settings } from "@/lib/types";
+import * as store from "@/lib/runsStore";
 
 interface Store {
   runs: Run[];
@@ -21,56 +18,25 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 export function RunsProvider({ children }: { children: ReactNode }) {
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const storedRuns = localStorage.getItem(RUNS_KEY);
-      if (storedRuns) setRuns(JSON.parse(storedRuns));
-      const storedSettings = localStorage.getItem(SETTINGS_KEY);
-      if (storedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) });
-    } catch {
-      // corrupt storage — start fresh
-    }
-    setHydrated(true);
-  }, []);
-
-  const persistRuns = useCallback((next: Run[]) => {
-    setRuns(next);
-    localStorage.setItem(RUNS_KEY, JSON.stringify(next));
-  }, []);
-
-  const addRun = useCallback(
-    (run: Omit<Run, "id">) => {
-      const withId: Run = { ...run, id: crypto.randomUUID() };
-      persistRuns([...runs.filter((r) => !r.id.startsWith("sample-")), withId].sort((a, b) => (a.date < b.date ? -1 : 1)));
-    },
-    [runs, persistRuns]
+  const { runs, settings, hydrated } = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot
   );
-
-  const deleteRun = useCallback(
-    (id: string) => persistRuns(runs.filter((r) => r.id !== id)),
-    [runs, persistRuns]
-  );
-
-  const updateSettings = useCallback(
-    (patch: Partial<Settings>) => {
-      setSettings((prev) => {
-        const next = { ...prev, ...patch };
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-        return next;
-      });
-    },
-    []
-  );
-
-  const loadSample = useCallback(() => persistRuns(generateSampleRuns()), [persistRuns]);
-  const clearAll = useCallback(() => persistRuns([]), [persistRuns]);
 
   return (
-    <StoreContext.Provider value={{ runs, settings, hydrated, addRun, deleteRun, updateSettings, loadSample, clearAll }}>
+    <StoreContext.Provider
+      value={{
+        runs,
+        settings,
+        hydrated,
+        addRun: store.addRun,
+        deleteRun: store.deleteRun,
+        updateSettings: store.updateSettings,
+        loadSample: store.loadSample,
+        clearAll: store.clearAll,
+      }}
+    >
       {children}
     </StoreContext.Provider>
   );

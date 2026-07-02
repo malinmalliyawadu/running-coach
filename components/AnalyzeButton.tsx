@@ -38,7 +38,7 @@ function buildPrompt(store: ReturnType<typeof useStore>): string {
   lines.push(
     `\nStats: ${stats.totalKm.toFixed(0)} km total over ${stats.runCount} runs · avg ${stats.avgWeeklyKm.toFixed(
       1
-    )} km/week (last 6 weeks) · longest run ${stats.longestKm.toFixed(1)} km · best pace ${
+    )} km/week (last ${stats.avgWeeklyWeeks} weeks) · longest run ${stats.longestKm.toFixed(1)} km · best pace ${
       stats.bestPaceSecPerKm ? formatPace(stats.bestPaceSecPerKm) + "/km" : "n/a"
     } · ${stats.thisWeekKm.toFixed(1)} km so far this week.`
   );

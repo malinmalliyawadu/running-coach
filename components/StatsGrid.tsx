@@ -12,7 +12,11 @@ export function StatsGrid() {
     { label: "Total volume", value: stats.totalKm.toFixed(0), unit: "km" },
     { label: "Runs logged", value: String(stats.runCount), unit: "" },
     { label: "This week", value: stats.thisWeekKm.toFixed(1), unit: "km" },
-    { label: "Avg weekly (6w)", value: stats.avgWeeklyKm.toFixed(1), unit: "km" },
+    {
+      label: `Avg weekly (${stats.avgWeeklyWeeks}w)`,
+      value: stats.avgWeeklyKm.toFixed(1),
+      unit: "km",
+    },
     { label: "Longest run", value: stats.longestKm.toFixed(1), unit: "km" },
     {
       label: "Best pace",

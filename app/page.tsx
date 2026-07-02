@@ -9,10 +9,13 @@ import { RunForm } from "@/components/RunForm";
 import { RunList } from "@/components/RunList";
 import { PlanPanel } from "@/components/PlanPanel";
 import { AnalyzeButton } from "@/components/AnalyzeButton";
+import { weeklyBuckets } from "@/lib/stats";
 
 function Dashboard() {
-  const { hydrated } = useStore();
+  const { hydrated, runs } = useStore();
   if (!hydrated) return <div className="min-h-screen" />;
+
+  const volumeWeeks = weeklyBuckets(runs).length;
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl pb-24">
@@ -34,7 +37,7 @@ function Dashboard() {
           <section className="panel p-6">
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="font-display text-lg font-semibold">Weekly volume</h2>
-              <span className="label-caps">last 14 weeks</span>
+              <span className="label-caps">last {volumeWeeks} weeks</span>
             </div>
             <WeeklyVolumeChart />
           </section>

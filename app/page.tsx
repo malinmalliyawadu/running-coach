@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { RunsProvider, useStore } from "@/components/RunsProvider";
 import { Header } from "@/components/Header";
 import { ForecastPanel } from "@/components/ForecastPanel";
@@ -13,6 +14,7 @@ import { weeklyBuckets } from "@/lib/stats";
 
 function Dashboard() {
   const { hydrated, runs } = useStore();
+  const [showProjection, setShowProjection] = useState(true);
   if (!hydrated) return <div className="min-h-screen" />;
 
   const volumeWeeks = weeklyBuckets(runs).length;
@@ -30,9 +32,19 @@ function Dashboard() {
           <section className="panel p-6">
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="font-display text-lg font-semibold">Forecast over time</h2>
-              <span className="label-caps">finish time</span>
+              <div className="flex items-baseline gap-3">
+                <span className="label-caps">finish time</span>
+                <button
+                  type="button"
+                  className="btn-ghost px-2.5! py-1! text-xs!"
+                  aria-pressed={showProjection}
+                  onClick={() => setShowProjection((s) => !s)}
+                >
+                  {showProjection ? "Hide projection" : "Show projection"}
+                </button>
+              </div>
             </div>
-            <ForecastTrendChart />
+            <ForecastTrendChart showProjection={showProjection} />
           </section>
           <section className="panel p-6">
             <div className="mb-2 flex items-baseline justify-between">

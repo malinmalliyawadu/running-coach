@@ -171,3 +171,67 @@ export function forecastTrend(runs: Run[]): TrendPoint[] {
   }
   return points;
 }
+
+export interface ProjectionPoint {
+  date: string;
+  projectedSec: number;
+}
+
+// Fit weights favour the recent trajectory; the taper flattens the projected
+// improvement because fitness gains slow as training accumulates.
+const PROJECTION_FIT_HALF_LIFE_DAYS = 28;
+const PROJECTION_TAPER_HALF_LIFE_DAYS = 42;
+
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * Extends the forecast trend from the latest forecast to race day.
+ *
+ * A recency-weighted least-squares line through the trend gives the current
+ * rate of improvement; the extrapolation decays that rate exponentially rather
+ * than running it straight to race day, since a straight line would credit a
+ * runner mid-ramp with months of their current (unsustainable) gains.
+ * Anchored at the last real forecast so the projected line joins the trend.
+ * Returns weekly points ending exactly on race day; empty when race day is not
+ * after the last forecast or the trend is too short to fit a slope.
+ */
+export function projectTrend(trend: TrendPoint[], raceDateISO: string): ProjectionPoint[] {
+  if (trend.length < 2) return [];
+  const last = trend[trend.length - 1];
+  const horizonDays = daysBetween(last.date, raceDateISO);
+  if (horizonDays <= 0) return [];
+
+  let sw = 0;
+  let sx = 0;
+  let sy = 0;
+  let sxx = 0;
+  let sxy = 0;
+  for (const p of trend) {
+    const x = daysBetween(last.date, p.date); // 0 or negative
+    const w = Math.pow(0.5, -x / PROJECTION_FIT_HALF_LIFE_DAYS);
+    sw += w;
+    sx += w * x;
+    sy += w * p.expectedSec;
+    sxx += w * x * x;
+    sxy += w * x * p.expectedSec;
+  }
+  const det = sw * sxx - sx * sx;
+  if (det <= 0) return []; // all trend points on one day — no slope to fit
+  const slopeSecPerDay = (sw * sxy - sx * sy) / det;
+
+  const tau = PROJECTION_TAPER_HALF_LIFE_DAYS / Math.LN2;
+  const gain = (days: number) => slopeSecPerDay * tau * (1 - Math.exp(-days / tau));
+
+  const points: ProjectionPoint[] = [{ date: last.date, projectedSec: last.expectedSec }];
+  for (let t = 7; t < horizonDays; t += 7) {
+    points.push({ date: addDaysISO(last.date, t), projectedSec: last.expectedSec + gain(t) });
+  }
+  points.push({ date: raceDateISO, projectedSec: last.expectedSec + gain(horizonDays) });
+  return points;
+}

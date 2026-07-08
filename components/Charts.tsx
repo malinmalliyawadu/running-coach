@@ -12,9 +12,10 @@ import {
   Bar,
   Cell,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 import { useStore } from "./RunsProvider";
-import { forecastTrend } from "@/lib/forecast";
+import { forecastTrend, projectTrend } from "@/lib/forecast";
 import { weeklyBuckets } from "@/lib/stats";
 import { formatDuration, formatDateShort } from "@/lib/format";
 
@@ -30,12 +31,16 @@ function hoursTick(sec: number): string {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-export function ForecastTrendChart() {
-  const { runs } = useStore();
-  const trend = forecastTrend(runs).map((p) => ({
-    ...p,
-    band: [p.optimisticSec, p.conservativeSec] as [number, number],
-  }));
+interface ForecastChartPoint {
+  date: string;
+  expectedSec?: number;
+  band?: [number, number];
+  projectedSec?: number;
+}
+
+export function ForecastTrendChart({ showProjection = false }: { showProjection?: boolean }) {
+  const { runs, settings } = useStore();
+  const trend = forecastTrend(runs);
 
   if (trend.length < 2) {
     return (
@@ -43,10 +48,23 @@ export function ForecastTrendChart() {
     );
   }
 
+  const projection = showProjection ? projectTrend(trend, settings.raceDate) : [];
+  const data: ForecastChartPoint[] = trend.map((p) => ({
+    date: p.date,
+    expectedSec: p.expectedSec,
+    band: [p.optimisticSec, p.conservativeSec],
+  }));
+  if (projection.length > 1) {
+    data[data.length - 1].projectedSec = projection[0].projectedSec;
+    for (const p of projection.slice(1)) {
+      data.push({ date: p.date, projectedSec: p.projectedSec });
+    }
+  }
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer>
-        <ComposedChart data={trend} margin={{ top: 10, right: 8, left: -8, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 10, right: 8, left: -8, bottom: 0 }}>
           <CartesianGrid stroke="var(--line)" vertical={false} />
           <XAxis
             dataKey="date"
@@ -80,9 +98,19 @@ export function ForecastTrendChart() {
                 const [lo, hi] = value.map(Number);
                 return [`${formatDuration(lo)} – ${formatDuration(hi)}`, "range"];
               }
-              return [formatDuration(Number(value)), name === "expectedSec" ? "forecast" : String(name)];
+              const label =
+                name === "expectedSec" ? "forecast" : name === "projectedSec" ? "projected" : String(name);
+              return [formatDuration(Number(value)), label];
             }}
           />
+          {projection.length > 1 && (
+            <ReferenceLine
+              x={settings.raceDate}
+              stroke="var(--line-strong)"
+              strokeDasharray="3 3"
+              label={<RaceDayLabel />}
+            />
+          )}
           <Area
             dataKey="band"
             stroke="none"
@@ -97,6 +125,17 @@ export function ForecastTrendChart() {
             dot={{ r: 2.5, fill: "var(--glacier)", strokeWidth: 0 }}
             activeDot={{ r: 4, fill: "var(--coral)" }}
           />
+          {projection.length > 1 && (
+            <Line
+              dataKey="projectedSec"
+              stroke="var(--coral)"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              dot={false}
+              activeDot={{ r: 4, fill: "var(--coral)" }}
+              isAnimationActive={false}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -150,6 +189,25 @@ export function WeeklyVolumeChart() {
         </BarChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+// Recharts collapses every inside* label position to the right of a
+// zero-width vertical ReferenceLine, which clips at the chart edge — so
+// anchor the text to the left of the line ourselves.
+function RaceDayLabel({ viewBox }: { viewBox?: { x?: number; y?: number } }) {
+  const { x = 0, y = 0 } = viewBox ?? {};
+  return (
+    <text
+      x={x - 6}
+      y={y + 12}
+      textAnchor="end"
+      fill="var(--paper-faint)"
+      fontSize={10}
+      fontFamily="var(--font-mono)"
+    >
+      race day
+    </text>
   );
 }
 

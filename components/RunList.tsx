@@ -2,7 +2,7 @@
 
 import { useStore } from "./RunsProvider";
 import { formatDuration, formatPace, formatDateShort } from "@/lib/format";
-import { RUN_TYPE_LABELS, RunType } from "@/lib/types";
+import { RUN_TYPE_LABELS, RunType, loggedQualitySegment } from "@/lib/types";
 
 const TYPE_COLOR: Record<RunType, string> = {
   easy: "var(--paper-dim)",
@@ -46,6 +46,7 @@ export function RunList() {
       <ul className="max-h-[480px] divide-y divide-[var(--line)] overflow-y-auto pr-1">
         {sorted.map((run) => {
           const pace = run.durationSec / run.distanceKm;
+          const quality = loggedQualitySegment(run);
           return (
             <li key={run.id} className="group flex items-baseline gap-4 py-3">
               <span className="font-mono-num w-14 shrink-0 text-xs text-[var(--paper-faint)]">
@@ -66,6 +67,16 @@ export function RunList() {
               <span className="font-mono-num shrink-0 text-xs text-[var(--paper-faint)]">
                 {formatPace(pace)}/km
               </span>
+              {quality && (
+                <span
+                  className="font-mono-num hidden shrink-0 text-xs text-[var(--glacier)] sm:inline"
+                  title={`${quality.km} km of hard running at ${formatPace(
+                    quality.durationSec / quality.km
+                  )}/km`}
+                >
+                  {quality.km} km @ {formatPace(quality.durationSec / quality.km)}
+                </span>
+              )}
               {run.note && (
                 <span className="hidden truncate text-xs italic text-[var(--paper-faint)] md:inline">
                   {run.note}

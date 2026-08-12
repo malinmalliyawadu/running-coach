@@ -5,7 +5,7 @@ import { forecastMarathon } from "@/lib/forecast";
 import { computeStats } from "@/lib/stats";
 import { generatePlan } from "@/lib/plan";
 import { formatDuration, formatPace, todayISO } from "@/lib/format";
-import { RUN_TYPE_LABELS } from "@/lib/types";
+import { RUN_TYPE_LABELS, loggedQualitySegment } from "@/lib/types";
 
 const MAX_RUNS_IN_PROMPT = 80;
 
@@ -31,7 +31,7 @@ function buildPrompt(store: ReturnType<typeof useStore>): string {
         forecast.optimisticSec
       )}–${formatDuration(forecast.conservativeSec)}, ${forecast.confidence} confidence), requiring ${formatPace(
         forecast.paceSecPerKm
-      )}/km. The model uses Riegel projection with effort, recency and volume weighting.`
+      )}/km. The model uses Riegel projection with effort, recency and volume weighting, applied to the hard part of each session rather than its door-to-door average.`
     );
   }
 
@@ -54,14 +54,20 @@ function buildPrompt(store: ReturnType<typeof useStore>): string {
 
   const sorted = [...runs].sort((a, b) => (a.date > b.date ? -1 : 1));
   const included = sorted.slice(0, MAX_RUNS_IN_PROMPT);
-  lines.push(`\nRun log (date, type, distance, time, pace)${
+  lines.push(`\nRun log (date, type, distance, time, pace — session totals include warm-up, cool-down and any recovery jogs; "hard" is the work portion where I recorded it)${
     sorted.length > included.length ? ` — most recent ${included.length} of ${sorted.length}` : ""
   }:`);
   for (const r of included) {
+    const quality = loggedQualitySegment(r);
+    const hard = quality
+      ? ` [hard: ${quality.km}km ${formatDuration(quality.durationSec)} ${formatPace(
+          quality.durationSec / quality.km
+        )}/km]`
+      : "";
     lines.push(
       `${r.date} ${RUN_TYPE_LABELS[r.type]} ${r.distanceKm}km ${formatDuration(r.durationSec)} ${formatPace(
         r.durationSec / r.distanceKm
-      )}/km${r.note ? ` — ${r.note}` : ""}`
+      )}/km${hard}${r.note ? ` — ${r.note}` : ""}`
     );
   }
 

@@ -14,6 +14,19 @@ export function formatPace(secPerKm: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * How a runner would say a rep set out loud — "6 × 800 m", "4 × 2 km". Null
+ * when the reps are mixed lengths and there is no shorthand for them.
+ */
+export function formatRepSet(reps: { km: number }[]): string | null {
+  if (reps.length === 0) return null;
+  const first = reps[0].km;
+  if (!reps.every((r) => Math.abs(r.km - first) < 0.001)) return null;
+  const metres = Math.round(first * 1000);
+  const length = metres >= 1000 && metres % 1000 === 0 ? `${metres / 1000} km` : `${metres} m`;
+  return `${reps.length} × ${length}`;
+}
+
 /** Parses "47:30", "1:42:05", "95" (minutes) into seconds. Returns null if invalid. */
 export function parseDuration(input: string): number | null {
   const trimmed = input.trim();

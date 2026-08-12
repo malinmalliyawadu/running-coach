@@ -22,8 +22,9 @@ export function ForecastPanel() {
           Log your first run to see a forecast.
         </p>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--paper-faint)]">
-          The model converts every run into an equivalent marathon effort, weights it by
-          recency and relevance, and projects your finish time on race day.
+          The model converts every run into an equivalent marathon effort — for a quality
+          session, the hard part of it rather than the warm-up and cool-down around it —
+          weights it by recency and relevance, and projects your finish time on race day.
         </p>
       </section>
     );

@@ -13,7 +13,7 @@ import { AnalyzeButton } from "@/components/AnalyzeButton";
 import { weeklyBuckets } from "@/lib/stats";
 
 function Dashboard() {
-  const { hydrated, runs } = useStore();
+  const { hydrated, runs, editingRunId } = useStore();
   const [showProjection, setShowProjection] = useState(true);
   if (!hydrated) return <div className="min-h-screen" />;
 
@@ -56,8 +56,10 @@ function Dashboard() {
         </div>
 
         <div className="rise rise-5 grid gap-6 lg:grid-cols-[380px_1fr]">
-          <section className="panel h-fit p-6">
-            <h2 className="font-display mb-5 text-lg font-semibold">Log a run</h2>
+          <section id="run-form" className="panel h-fit p-6">
+            <h2 className="font-display mb-5 text-lg font-semibold">
+              {editingRunId ? "Edit run" : "Log a run"}
+            </h2>
             <RunForm />
           </section>
           <section className="panel p-6">

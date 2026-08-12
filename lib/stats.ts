@@ -1,11 +1,11 @@
-import { Run } from "./types";
+import { loggedQualitySegment, Run } from "./types";
 import { todayISO } from "./format";
 
 export interface Stats {
   totalKm: number;
   runCount: number;
   longestKm: number;
-  bestPaceSecPerKm: number; // fastest single-run average pace (runs ≥ 3 km)
+  bestPaceSecPerKm: number; // fastest sustained effort ≥ 3 km (see computeStats)
   thisWeekKm: number;
   avgWeeklyKm: number; // over the trained window (see avgWeeklyWeeks)
   avgWeeklyWeeks: number; // weeks the average spans: since first run, capped at 6
@@ -40,7 +40,15 @@ export function computeStats(runs: Run[]): Stats {
   for (const r of runs) {
     totalKm += r.distanceKm;
     longestKm = Math.max(longestKm, r.distanceKm);
-    if (r.distanceKm >= 3 && r.type !== "intervals") {
+    // Best pace means the fastest pace held without a break. For a tempo run
+    // with a logged split that is the block itself, not the session average —
+    // which is dragged slow by the warm-up and cool-down wrapped around it.
+    // Interval sessions never count: their average belongs to no part of the
+    // run, and even the reps alone are broken up by the recoveries.
+    const tempoBlock = r.type === "tempo" ? loggedQualitySegment(r) : null;
+    if (tempoBlock) {
+      if (tempoBlock.km >= 3) bestPace = Math.min(bestPace, tempoBlock.durationSec / tempoBlock.km);
+    } else if (r.distanceKm >= 3 && r.type !== "intervals") {
       bestPace = Math.min(bestPace, r.durationSec / r.distanceKm);
     }
     if (r.date >= weekStart && r.date <= today) thisWeekKm += r.distanceKm;

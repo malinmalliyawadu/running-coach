@@ -82,6 +82,18 @@ export function addRun(run: Omit<Run, "id">) {
   );
 }
 
+/**
+ * Replaces a run wholesale, so clearing a quality split or a rep set on an
+ * edit actually drops it. Re-sorts because the date may have moved.
+ */
+export function updateRun(id: string, run: Omit<Run, "id">) {
+  persistRuns(
+    snapshot.runs
+      .map((r) => (r.id === id ? { ...run, id } : r))
+      .sort((a, b) => (a.date < b.date ? -1 : 1))
+  );
+}
+
 export function deleteRun(id: string) {
   persistRuns(snapshot.runs.filter((r) => r.id !== id));
 }

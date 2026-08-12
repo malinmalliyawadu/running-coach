@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useSyncExternalStore } from "react";
+import { createContext, useContext, ReactNode, useState, useSyncExternalStore } from "react";
 import { Run, Settings } from "@/lib/types";
 import * as store from "@/lib/runsStore";
 
@@ -9,10 +9,14 @@ interface Store {
   settings: Settings;
   hydrated: boolean;
   addRun: (run: Omit<Run, "id">) => void;
+  updateRun: (id: string, run: Omit<Run, "id">) => void;
   deleteRun: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   loadSample: () => void;
   clearAll: () => void;
+  /** The run the form is currently editing, if any. */
+  editingRunId: string | null;
+  setEditingRunId: (id: string | null) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -23,6 +27,7 @@ export function RunsProvider({ children }: { children: ReactNode }) {
     store.getSnapshot,
     store.getServerSnapshot
   );
+  const [editingRunId, setEditingRunId] = useState<string | null>(null);
 
   return (
     <StoreContext.Provider
@@ -31,10 +36,13 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         settings,
         hydrated,
         addRun: store.addRun,
+        updateRun: store.updateRun,
         deleteRun: store.deleteRun,
         updateSettings: store.updateSettings,
         loadSample: store.loadSample,
         clearAll: store.clearAll,
+        editingRunId,
+        setEditingRunId,
       }}
     >
       {children}

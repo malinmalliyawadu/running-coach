@@ -5,7 +5,8 @@ import { forecastMarathon } from "@/lib/forecast";
 import { computeStats } from "@/lib/stats";
 import { generatePlan } from "@/lib/plan";
 import { formatDuration, formatPace, todayISO } from "@/lib/format";
-import { RUN_TYPE_LABELS, loggedQualitySegment } from "@/lib/types";
+import { RUN_TYPE_LABELS, loggedQualitySegment, validReps } from "@/lib/types";
+import { formatRepSet } from "@/lib/format";
 
 const MAX_RUNS_IN_PROMPT = 80;
 
@@ -59,10 +60,17 @@ function buildPrompt(store: ReturnType<typeof useStore>): string {
   }:`);
   for (const r of included) {
     const quality = loggedQualitySegment(r);
+    const reps = validReps(r);
+    // Individual rep times show how the runner held up across a set, so pass
+    // them through for anything but an unusually long session.
+    const splits =
+      reps.length > 1 && reps.length <= 16
+        ? `, splits ${reps.map((x) => formatDuration(x.durationSec)).join(" / ")}`
+        : "";
     const hard = quality
-      ? ` [hard: ${quality.km}km ${formatDuration(quality.durationSec)} ${formatPace(
-          quality.durationSec / quality.km
-        )}/km]`
+      ? ` [hard: ${formatRepSet(reps) ?? `${Math.round(quality.km * 100) / 100}km`} ${formatDuration(
+          quality.durationSec
+        )} ${formatPace(quality.durationSec / quality.km)}/km${splits}]`
       : "";
     lines.push(
       `${r.date} ${RUN_TYPE_LABELS[r.type]} ${r.distanceKm}km ${formatDuration(r.durationSec)} ${formatPace(

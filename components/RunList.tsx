@@ -1,8 +1,8 @@
 "use client";
 
 import { useStore } from "./RunsProvider";
-import { formatDuration, formatPace, formatDateShort } from "@/lib/format";
-import { RUN_TYPE_LABELS, RunType, loggedQualitySegment } from "@/lib/types";
+import { formatDuration, formatPace, formatDateShort, formatRepSet } from "@/lib/format";
+import { RUN_TYPE_LABELS, RunType, loggedQualitySegment, validReps } from "@/lib/types";
 
 const TYPE_COLOR: Record<RunType, string> = {
   easy: "var(--paper-dim)",
@@ -13,7 +13,13 @@ const TYPE_COLOR: Record<RunType, string> = {
 };
 
 export function RunList() {
-  const { runs, deleteRun, loadSample, clearAll } = useStore();
+  const { runs, deleteRun, loadSample, clearAll, editingRunId, setEditingRunId } = useStore();
+
+  function edit(id: string) {
+    setEditingRunId(id);
+    // The form sits above the log on narrow screens, out of view on a long log.
+    document.getElementById("run-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
   const sorted = [...runs].sort((a, b) => (a.date > b.date ? -1 : 1));
   const isSample = runs.some((r) => r.id.startsWith("sample-"));
 
@@ -47,8 +53,19 @@ export function RunList() {
         {sorted.map((run) => {
           const pace = run.durationSec / run.distanceKm;
           const quality = loggedQualitySegment(run);
+          // A rep set reads better as "6 × 800 m" than as its total distance.
+          const qualityLabel = quality
+            ? `${formatRepSet(validReps(run)) ?? `${Math.round(quality.km * 100) / 100} km`} @ ${formatPace(
+                quality.durationSec / quality.km
+              )}`
+            : null;
           return (
-            <li key={run.id} className="group flex items-baseline gap-4 py-3">
+            <li
+              key={run.id}
+              className={`group flex items-baseline gap-4 py-3 ${
+                run.id === editingRunId ? "-mx-2 rounded bg-[rgba(123,224,206,0.07)] px-2" : ""
+              }`}
+            >
               <span className="font-mono-num w-14 shrink-0 text-xs text-[var(--paper-faint)]">
                 {formatDateShort(run.date)}
               </span>
@@ -67,14 +84,14 @@ export function RunList() {
               <span className="font-mono-num shrink-0 text-xs text-[var(--paper-faint)]">
                 {formatPace(pace)}/km
               </span>
-              {quality && (
+              {qualityLabel && quality && (
                 <span
                   className="font-mono-num hidden shrink-0 text-xs text-[var(--glacier)] sm:inline"
-                  title={`${quality.km} km of hard running at ${formatPace(
+                  title={`${Math.round(quality.km * 100) / 100} km of hard running at ${formatPace(
                     quality.durationSec / quality.km
                   )}/km`}
                 >
-                  {quality.km} km @ {formatPace(quality.durationSec / quality.km)}
+                  {qualityLabel}
                 </span>
               )}
               {run.note && (
@@ -83,9 +100,21 @@ export function RunList() {
                 </span>
               )}
               <button
-                onClick={() => deleteRun(run.id)}
-                className="ml-auto shrink-0 text-xs text-[var(--paper-faint)] opacity-0 transition-opacity hover:text-[var(--coral)] group-hover:opacity-100"
-                aria-label="Delete run"
+                onClick={() => edit(run.id)}
+                className={`ml-auto shrink-0 text-xs text-[var(--paper-faint)] transition-opacity hover:text-[var(--glacier)] group-hover:opacity-100 ${
+                  run.id === editingRunId ? "text-[var(--glacier)] opacity-100" : "opacity-0"
+                }`}
+                aria-label={`Edit run from ${formatDateShort(run.date)}`}
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  if (run.id === editingRunId) setEditingRunId(null);
+                  deleteRun(run.id);
+                }}
+                className="shrink-0 text-xs text-[var(--paper-faint)] opacity-0 transition-opacity hover:text-[var(--coral)] group-hover:opacity-100"
+                aria-label={`Delete run from ${formatDateShort(run.date)}`}
               >
                 ✕
               </button>

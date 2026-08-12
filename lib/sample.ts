@@ -48,16 +48,20 @@ export function generateSampleRuns(): Run[] {
         qualityDurationSec,
       });
     } else {
-      // 2 km warm-up · 6 × 800 m hard w/ 400 m jogs · 1.8 km cool-down
+      // 2 km warm-up · 6 × 800 m hard w/ 400 m jogs · 1.8 km cool-down.
+      // The set drifts a couple of seconds slower rep to rep, the way a real
+      // one does, with the last one run in on whatever is left.
       const repPace = easyPace - 85 + jitter;
-      const qualityDurationSec = Math.round(4.8 * repPace);
+      const reps = Array.from({ length: 6 }, (_, i) => ({
+        km: 0.8,
+        durationSec: Math.round(0.8 * (repPace + i * 1.5 - (i === 5 ? 6 : 0))),
+      }));
+      const workSec = reps.reduce((s, r) => s + r.durationSec, 0);
       push(dayOf(1), {
         type: "intervals",
         distanceKm: 10.8,
-        durationSec: qualityDurationSec + Math.round(6 * (easyPace + 15)),
-        qualityKm: 4.8,
-        qualityDurationSec,
-        note: "6 × 800 m",
+        durationSec: workSec + Math.round(6 * (easyPace + 15)),
+        reps,
       });
     }
 

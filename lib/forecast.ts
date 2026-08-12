@@ -1,4 +1,11 @@
-import { isQualityType, loggedQualitySegment, MARATHON_KM, Run, RunType } from "./types";
+import {
+  isQualityType,
+  loggedQualitySegment,
+  MARATHON_KM,
+  Run,
+  RunType,
+  validReps,
+} from "./types";
 
 /**
  * Marathon forecasting model.
@@ -26,9 +33,32 @@ const EFFORT_FACTOR: Record<RunType, number> = {
   easy: 0.9,
   // Reps split by recoveries are run faster than the same total distance in one
   // unbroken effort, so a continuous race over it would be *slower* than the
-  // reps add up to — the only factor above 1.
+  // reps add up to — the only factor above 1. Stands in for a session logged
+  // without its individual reps; see `effortFactor`.
   intervals: 1.05,
 };
+
+// How far a rep session sits from one continuous effort depends on rep length:
+// 400s at mile pace are a world away from 2 km reps, which are nearly a tempo.
+// Interpolated between these bounds when the reps themselves were logged.
+const SHORT_REP_KM = 0.4;
+const SHORT_REP_FACTOR = 1.08;
+const LONG_REP_KM = 2;
+const LONG_REP_FACTOR = 1.02;
+
+/**
+ * How much faster the runner could have covered the work segment at race
+ * effort. For rep sessions this is sharper than the type default whenever the
+ * reps were logged one by one, since their length is then known rather than
+ * assumed.
+ */
+function effortFactor(run: Run): number {
+  const reps = validReps(run);
+  if (run.type !== "intervals" || reps.length === 0) return EFFORT_FACTOR[run.type];
+  const meanRepKm = reps.reduce((s, r) => s + r.km, 0) / reps.length;
+  const t = Math.min(1, Math.max(0, (meanRepKm - SHORT_REP_KM) / (LONG_REP_KM - SHORT_REP_KM)));
+  return SHORT_REP_FACTOR + t * (LONG_REP_FACTOR - SHORT_REP_FACTOR);
+}
 
 const TYPE_RELIABILITY: Record<RunType, number> = {
   race: 1.0,
@@ -206,7 +236,7 @@ export function workSegment(run: Run, easyPaceSec: number | null): WorkSegment {
 }
 
 function equivalentMarathonSec(run: Run, segment: WorkSegment, exponent: number): number {
-  const raceTimeSec = segment.durationSec * EFFORT_FACTOR[run.type];
+  const raceTimeSec = segment.durationSec * effortFactor(run);
   return raceTimeSec * Math.pow(MARATHON_KM / segment.km, exponent);
 }
 

@@ -6,7 +6,7 @@ import { Run } from "./types";
  *
  * Quality sessions are built the way they are actually run — a warm-up and
  * cool-down wrapped around the work, plus jog recoveries between reps — and
- * carry the split the model reads (`qualityKm` / `qualityDurationSec`).
+ * carry the split the log displays (`qualityKm` / `qualityDurationSec`).
  */
 export function generateSampleRuns(): Run[] {
   const runs: Run[] = [];

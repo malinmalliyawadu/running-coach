@@ -32,7 +32,11 @@ function buildPrompt(store: ReturnType<typeof useStore>): string {
         forecast.optimisticSec
       )}–${formatDuration(forecast.conservativeSec)}, ${forecast.confidence} confidence), requiring ${formatPace(
         forecast.paceSecPerKm
-      )}/km. The model uses Riegel projection with effort, recency and volume weighting, applied to the hard part of each session rather than its door-to-door average.`
+      )}/km. The forecast comes from the Tanda model — marathon pace = 17.1 + 140·e^(−0.0053·K) + 0.55·P, where K is my mean weekly distance (${forecast.weeklyKm.toFixed(
+        1
+      )} km/week) and P my mean training pace (${formatPace(
+        forecast.trainingPaceSecPerKm
+      )}/km), both averaged over the last ${forecast.weeksSpanned} weeks of training. It reads the training block as a whole, so a single fast session or time trial does not move it.`
     );
   }
 

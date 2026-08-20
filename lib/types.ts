@@ -16,9 +16,10 @@ export interface Run {
   reps?: Rep[];
   /**
    * The hard part of a quality session — the tempo block, or the reps only —
-   * with warm-up, cool-down and recovery jogs left out. Optional: when it is
-   * missing the model infers it from a typical session shape, but logging it
-   * makes the run a much stronger fitness signal. Rep sessions carry `reps`
+   * with warm-up, cool-down and recovery jogs left out. Optional, and not an
+   * input to the forecast (Tanda reads whole sessions, door to door): it is
+   * what the log shows, what the best-pace stat is taken from, and what an
+   * analysis needs to see how the work itself went. Rep sessions carry `reps`
    * instead and get totalled up here by `loggedQualitySegment`.
    */
   qualityKm?: number;

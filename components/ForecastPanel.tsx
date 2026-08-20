@@ -5,7 +5,7 @@ import { forecastMarathon } from "@/lib/forecast";
 import { formatDuration, formatPace, todayISO } from "@/lib/format";
 
 const CONFIDENCE_LABEL = {
-  low: "Low confidence — log more quality runs",
+  low: "Low confidence — the model needs a fuller training block",
   medium: "Medium confidence",
   high: "High confidence",
 } as const;
@@ -19,12 +19,12 @@ export function ForecastPanel() {
       <section className="panel rise rise-3 p-8 md:p-10">
         <p className="label-caps mb-3">Finish forecast</p>
         <p className="font-display text-3xl font-semibold text-[var(--paper-dim)]">
-          Log your first run to see a forecast.
+          Log a few runs to see a forecast.
         </p>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--paper-faint)]">
-          The model converts every run into an equivalent marathon effort — for a quality
-          session, the hard part of it rather than the warm-up and cool-down around it —
-          weights it by recency and relevance, and projects your finish time on race day.
+          The Tanda model reads your training block rather than any single run: how far you
+          run in a typical week, and how fast you cover it. Those two numbers over the eight
+          weeks before race day are what it turns into a finish time.
         </p>
       </section>
     );
@@ -47,8 +47,8 @@ export function ForecastPanel() {
             <span className="text-[var(--coral)]">↓ {formatDuration(forecast.conservativeSec)}</span>
           </div>
           <p className="mt-3 text-xs text-[var(--paper-faint)]">
-            {CONFIDENCE_LABEL[forecast.confidence]} · based on ~{forecast.sampleSize} weighted run
-            {forecast.sampleSize === 1 ? "" : "s"}
+            {CONFIDENCE_LABEL[forecast.confidence]} · from {forecast.runCount} run
+            {forecast.runCount === 1 ? "" : "s"}
           </p>
         </div>
 
@@ -76,6 +76,19 @@ export function ForecastPanel() {
               </p>
             </div>
           )}
+          <div>
+            <p className="label-caps mb-2">
+              Last {forecast.weeksSpanned} week{forecast.weeksSpanned === 1 ? "" : "s"}
+            </p>
+            <p className="font-mono-num text-3xl font-semibold">
+              {Math.round(forecast.weeklyKm)}
+              <span className="ml-1 text-sm text-[var(--paper-faint)]">km/wk</span>
+            </p>
+            <p className="font-mono-num mt-1 text-sm text-[var(--paper-dim)]">
+              {formatPace(forecast.trainingPaceSecPerKm)}
+              <span className="ml-1 text-xs text-[var(--paper-faint)]">/km avg</span>
+            </p>
+          </div>
         </div>
       </div>
     </section>

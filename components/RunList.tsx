@@ -49,7 +49,7 @@ export function RunList() {
           </button>
         </div>
       )}
-      <ul className="max-h-[480px] divide-y divide-[var(--line)] overflow-y-auto pr-1">
+      <ul className="max-h-[480px] divide-y divide-[var(--line)] overflow-x-auto overflow-y-auto pr-1">
         {sorted.map((run) => {
           const pace = run.durationSec / run.distanceKm;
           const quality = loggedQualitySegment(run);

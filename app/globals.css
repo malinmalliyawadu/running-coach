@@ -137,6 +137,7 @@ body {
   padding: 0.6rem 0.8rem;
   font-size: 0.9rem;
   width: 100%;
+  min-width: 0;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .input-field:focus {

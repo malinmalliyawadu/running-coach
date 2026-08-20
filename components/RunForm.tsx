@@ -238,8 +238,8 @@ function RunFormFields({ editing }: { editing: Run | null }) {
         <fieldset className="rounded border border-dashed border-[var(--line-strong)] px-4 pb-4 pt-3">
           <legend className="label-caps px-1">Hard part (optional)</legend>
           <p className="mb-3 text-xs leading-relaxed text-[var(--paper-faint)]">
-            The tempo block only — leave out the warm-up and cool-down. Without it the model has
-            to guess the split, and reads the session slower than you ran it.
+            The tempo block only — leave out the warm-up and cool-down. It keeps your best-pace
+            stat honest and shows the session at the pace you actually ran the work.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">

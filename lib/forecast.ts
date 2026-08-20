@@ -1,89 +1,80 @@
-import {
-  isQualityType,
-  loggedQualitySegment,
-  MARATHON_KM,
-  Run,
-  RunType,
-  validReps,
-} from "./types";
+import { MARATHON_KM, Run } from "./types";
 
 /**
- * Marathon forecasting model.
+ * Marathon forecasting model — Tanda (2011).
  *
- * Each run is reduced to the stretch that actually carries a fitness signal —
- * for a quality session that is the tempo block or the reps, not the warm-up,
- * cool-down and recovery jogs wrapped around them (see `workSegment`). That
- * stretch is converted to an "equivalent flat-out race effort" at its distance
- * (easy runs are run well below race effort, so we credit them a margin), then
- * projected to marathon distance with Riegel's formula T2 = T1 * (D2/D1)^k.
+ * Rather than treating any single run as a race in miniature, Tanda's model
+ * reads the training block as a whole. Two indices over the 8 weeks before race
+ * day turn out to carry almost all of the predictive signal:
  *
- * The Riegel exponent k is adapted to weekly volume: low-mileage runners fade
- * more over the marathon distance than the classic 1.06 predicts.
+ *   K = mean weekly distance (km/week)
+ *   P = mean training pace  (s/km, across every km run)
  *
- * Runs are weighted by recency (half-life ~45 days), distance relevance, and
- * how reliable the run type is as a fitness signal.
+ * and marathon pace follows from them directly:
+ *
+ *   marathonPace [s/km] = 17.1 + 140.0 * e^(-0.0053 * K) + 0.55 * P
+ *
+ * The volume term is the endurance base — it decays steeply, so the first 40
+ * km/week buy far more than the last 40 — and the pace term is the runner's
+ * underlying speed. Nothing else enters: not the shape of a session, not how
+ * the reps were split, not a time trial. That is the model's claim, and the
+ * price of it is that a fast standalone effort no longer moves the forecast on
+ * its own; only the training it sits inside does.
+ *
+ * Fitted on well-trained recreational runners logging roughly 40–150 km/week,
+ * so the further a log sits below that floor the wider the band we quote.
  */
 
-// How much faster the runner could have covered the work segment at race
-// effort. estimatedRaceTime = segmentDuration * factor
-const EFFORT_FACTOR: Record<RunType, number> = {
-  race: 1.0,
-  tempo: 0.97,
-  long: 0.92,
-  easy: 0.9,
-  // Reps split by recoveries are run faster than the same total distance in one
-  // unbroken effort, so a continuous race over it would be *slower* than the
-  // reps add up to — the only factor above 1. Stands in for a session logged
-  // without its individual reps; see `effortFactor`.
-  intervals: 1.05,
-};
+/** Tanda's fitted coefficients, from his 2011 marathon-prediction paper. */
+const TANDA_INTERCEPT = 17.1;
+const TANDA_VOLUME_SCALE = 140.0;
+const TANDA_VOLUME_DECAY = 0.0053;
+const TANDA_PACE_COEFFICIENT = 0.55;
 
-// How far a rep session sits from one continuous effort depends on rep length:
-// 400s at mile pace are a world away from 2 km reps, which are nearly a tempo.
-// Interpolated between these bounds when the reps themselves were logged.
-const SHORT_REP_KM = 0.4;
-const SHORT_REP_FACTOR = 1.08;
-const LONG_REP_KM = 2;
-const LONG_REP_FACTOR = 1.02;
-
-/**
- * How much faster the runner could have covered the work segment at race
- * effort. For rep sessions this is sharper than the type default whenever the
- * reps were logged one by one, since their length is then known rather than
- * assumed.
- */
-function effortFactor(run: Run): number {
-  const reps = validReps(run);
-  if (run.type !== "intervals" || reps.length === 0) return EFFORT_FACTOR[run.type];
-  const meanRepKm = reps.reduce((s, r) => s + r.km, 0) / reps.length;
-  const t = Math.min(1, Math.max(0, (meanRepKm - SHORT_REP_KM) / (LONG_REP_KM - SHORT_REP_KM)));
-  return SHORT_REP_FACTOR + t * (LONG_REP_FACTOR - SHORT_REP_FACTOR);
+/** Marathon race pace, in seconds per km, from the two training indices. */
+export function tandaRacePaceSecPerKm(weeklyKm: number, trainingPaceSecPerKm: number): number {
+  return (
+    TANDA_INTERCEPT +
+    TANDA_VOLUME_SCALE * Math.exp(-TANDA_VOLUME_DECAY * weeklyKm) +
+    TANDA_PACE_COEFFICIENT * trainingPaceSecPerKm
+  );
 }
 
-const TYPE_RELIABILITY: Record<RunType, number> = {
-  race: 1.0,
-  tempo: 0.7,
-  long: 0.6,
-  // Short fast reps extrapolate to the marathon less surely than a threshold
-  // block, but with the recoveries stripped out they are a real signal — this
-  // was 0 back when the whole diluted session was all the model had to go on.
-  intervals: 0.5,
-  easy: 0.35,
-};
+/** The period the indices are averaged over — Tanda's own window. */
+const WINDOW_WEEKS = 8;
 
-// An inferred work segment is a reading of a typical session, not a measurement,
-// so it counts for less than one the runner actually logged.
-const INFERRED_SEGMENT_DISCOUNT = 0.7;
+// Two indices off a single run are not a training block. Three runs is about a
+// week of training, the point where a mean weekly distance starts to mean
+// something.
+const MIN_RUNS_IN_WINDOW = 3;
 
-const RECENCY_HALF_LIFE_DAYS = 45;
+// Below this the formula is extrapolating past the runners it was fitted on,
+// and below half of it the extrapolation is far enough to distrust outright.
+const CALIBRATED_MIN_WEEKLY_KM = 40;
+const FAR_BELOW_CALIBRATION_KM = CALIBRATED_MIN_WEEKLY_KM / 2;
+
+// Tanda reproduced his calibration set to within a few minutes; ~2.5% of the
+// predicted time is a fair band for a runner the model fits (≈5.5 min on 3:40).
+const BASE_SPREAD_SHARE = 0.025;
+// Every week of the window with nothing logged is a week the indices are read
+// off less evidence, so the band opens.
+const SPREAD_PER_UNTRAINED_WEEK = 0.12;
 
 export interface Forecast {
   expectedSec: number;
   optimisticSec: number;
   conservativeSec: number;
   paceSecPerKm: number;
-  sampleSize: number; // runs contributing meaningful weight
-  exponent: number;
+  /** Mean weekly distance over the window — Tanda's volume index. */
+  weeklyKm: number;
+  /** Mean training pace over the window — Tanda's pace index. */
+  trainingPaceSecPerKm: number;
+  /** Runs the indices were computed from. */
+  runCount: number;
+  /** Weeks of the window with any running logged. */
+  weeksTrained: number;
+  /** Weeks the averages span — from the oldest logged week to now. */
+  weeksSpanned: number;
   confidence: "low" | "medium" | "high";
 }
 
@@ -91,206 +82,104 @@ function daysBetween(aISO: string, bISO: string): number {
   return (new Date(bISO + "T12:00:00").getTime() - new Date(aISO + "T12:00:00").getTime()) / 86_400_000;
 }
 
+export interface TrainingIndices {
+  weeklyKm: number;
+  paceSecPerKm: number;
+  runCount: number;
+  weeksTrained: number;
+  weeksSpanned: number;
+}
+
 /**
- * Recency-weighted weekly volume over the 6 weeks before `asOf`.
+ * Tanda's two indices over the 8 weeks before `asOf`.
  *
- * A flat mean (total ÷ 6) badly understates a runner mid-ramp: when most of the
- * km sit in the last week or two, the near-empty early weeks halve the average
- * and the model reads a far smaller endurance base than the runner actually has.
- * Instead each week is weighted by recency (10-day half-life) so the figure
- * tracks current training load, and the average spans only from the first run in
- * the window — weeks before the block began don't dilute it.
+ * Every logged km counts, at the pace it was actually covered door to door —
+ * warm-ups, recovery jogs and all. That is what the model was fitted on, and
+ * it is why the forecast reads a block of training rather than a best effort.
+ *
+ * The averages span only back to the oldest week that has running in it. Weeks
+ * before the log begins are unknown, not empty, and dividing by eight of them
+ * would read a runner three weeks into a block as barely training. Empty weeks
+ * *inside* the log do count as zero: a missed week is real lost load.
  */
-export function weeklyVolumeKm(runs: Run[], asOf: string): number {
-  const WEEKS = 6;
-  const WEEK_DECAY = Math.pow(0.5, 7 / 10); // 10-day half-life, applied per week
-  const km = new Array<number>(WEEKS).fill(0);
+export function trainingIndices(runs: Run[], asOf: string): TrainingIndices | null {
+  const km = new Array<number>(WINDOW_WEEKS).fill(0);
+  const sec = new Array<number>(WINDOW_WEEKS).fill(0);
+  const count = new Array<number>(WINDOW_WEEKS).fill(0);
+
   for (const r of runs) {
-    const d = daysBetween(r.date, asOf);
-    if (d < 0 || d >= WEEKS * 7) continue;
-    km[Math.floor(d / 7)] += r.distanceKm;
-  }
-
-  let lastActive = -1;
-  for (let i = 0; i < WEEKS; i++) if (km[i] > 0) lastActive = i;
-  if (lastActive < 0) return 0;
-
-  let num = 0;
-  let den = 0;
-  for (let i = 0; i <= lastActive; i++) {
-    const w = Math.pow(WEEK_DECAY, i);
-    num += km[i] * w;
-    den += w;
-  }
-  return num / den;
-}
-
-/**
- * Riegel exponent adapted to training volume: more mileage means less fade over
- * the marathon distance. Slopes smoothly from 1.10 at ≤12 km/wk down to 1.05 at
- * ≥80 km/wk — the old curve was flat at 1.10 below 30 km/wk, a dead zone that
- * gave a 28 km/wk runner the same fade penalty as a 10 km/wk one.
- */
-function riegelExponent(weeklyKm: number): number {
-  const k = 1.1 - ((weeklyKm - 12) * 0.05) / 68;
-  return Math.min(1.1, Math.max(1.05, k));
-}
-
-/**
- * Typical easy-jog pace as of `asOf`, learned from easy and long runs and
- * weighted by recency. It is what the warm-up, cool-down and recovery jogs
- * inside a quality session get priced at. Null when the log has nothing easy
- * to learn it from.
- */
-function easyPaceSecPerKm(runs: Run[], asOf: string): number | null {
-  let num = 0;
-  let den = 0;
-  for (const r of runs) {
-    if (r.type !== "easy" && r.type !== "long") continue;
     if (r.distanceKm <= 0 || r.durationSec <= 0) continue;
     const daysAgo = daysBetween(r.date, asOf);
-    if (daysAgo < 0) continue;
-    const w = Math.pow(0.5, daysAgo / RECENCY_HALF_LIFE_DAYS);
-    num += (r.durationSec / r.distanceKm) * w;
-    den += w;
-  }
-  return den > 0 ? num / den : null;
-}
-
-export interface WorkSegment {
-  km: number;
-  durationSec: number;
-  /** False when the split was inferred rather than logged by the runner. */
-  logged: boolean;
-}
-
-// A session's warm-up and cool-down: the plan prescribes 2 km either side, but
-// cap it as a share of the session so a short one isn't stripped to nothing.
-const WARMUP_COOLDOWN_KM = 4;
-const WARMUP_COOLDOWN_MAX_SHARE = 0.3;
-// 8 × 800 m hard with 400 m jog recoveries — the plan's default rep session —
-// leaves a third of the non-warm-up distance in the recoveries.
-const RECOVERY_SHARE = 1 / 3;
-// Riegel from a shorter stretch than this extrapolates too far to be worth much.
-const MIN_SEGMENT_KM = 1.5;
-// Easy jogging sits roughly 22% per km off the pace of the work it surrounds.
-// Used to split a session when the log has no easy runs to calibrate against.
-const JOG_TO_WORK_PACE_RATIO = 1.22;
-// Faster than this share of easy pace and the implied work is not believable —
-// the entry is most likely the reps alone, with no jogging folded into it.
-const FASTEST_BELIEVABLE_WORK_SHARE_OF_EASY = 0.62;
-
-/** Distance in a quality session spent jogging rather than working. */
-function jogDistanceKm(run: Run): number {
-  const warmupCooldown = Math.min(WARMUP_COOLDOWN_KM, run.distanceKm * WARMUP_COOLDOWN_MAX_SHARE);
-  if (run.type !== "intervals") return warmupCooldown;
-  return warmupCooldown + (run.distanceKm - warmupCooldown) * RECOVERY_SHARE;
-}
-
-/**
- * The part of a run that says something about race fitness.
- *
- * Easy, long and race efforts are continuous, so that is the whole run. A
- * quality session is not: its total lumps a fast tempo block or set of reps in
- * with the jogging either side and, for intervals, the recoveries in between —
- * an average pace that belongs to no part of the session. Taking that average
- * at face value reads a tempo run as a mediocre continuous effort and made
- * interval sessions unusable altogether.
- *
- * Preference order: the runner's own logged split, then the jogging priced out
- * at their easy pace, then — with no easy runs to calibrate against — a split
- * that assumes the usual gap between jog and work pace.
- */
-export function workSegment(run: Run, easyPaceSec: number | null): WorkSegment {
-  const whole = { km: run.distanceKm, durationSec: run.durationSec, logged: true };
-  if (!isQualityType(run.type)) return whole;
-
-  const logged = loggedQualitySegment(run);
-  if (logged) return { ...logged, logged: true };
-
-  const jogKm = jogDistanceKm(run);
-  const km = run.distanceKm - jogKm;
-  // Too short to split meaningfully — read it as one continuous effort, which
-  // for a rep session is the conservative reading.
-  if (km < MIN_SEGMENT_KM) return { ...whole, logged: false };
-
-  if (easyPaceSec != null) {
-    const durationSec = run.durationSec - jogKm * easyPaceSec;
-    const workPace = durationSec / km;
-    const believable =
-      durationSec > 0 &&
-      workPace >= easyPaceSec * FASTEST_BELIEVABLE_WORK_SHARE_OF_EASY &&
-      workPace < easyPaceSec;
-    // When the split comes out unbelievable the session wasn't shaped the way
-    // we assumed — either the entry is the work alone with the jogging already
-    // left off, or nothing in it was run harder than a jog. Either way the
-    // honest reading is one continuous effort over the whole entry.
-    return believable ? { km, durationSec, logged: false } : { ...whole, logged: false };
+    if (daysAgo < 0 || daysAgo >= WINDOW_WEEKS * 7) continue;
+    const week = Math.floor(daysAgo / 7);
+    km[week] += r.distanceKm;
+    sec[week] += r.durationSec;
+    count[week] += 1;
   }
 
-  // Nothing easy in the log to price the jogging against, so lean on the usual
-  // gap between jog and work pace. Self-consistent by construction: it can only
-  // ever read the work as faster than the session average, never slower.
-  const workPace = run.durationSec / (jogKm * JOG_TO_WORK_PACE_RATIO + km);
-  return { km, durationSec: km * workPace, logged: false };
-}
+  let oldestTrained = -1;
+  for (let i = 0; i < WINDOW_WEEKS; i++) if (km[i] > 0) oldestTrained = i;
+  if (oldestTrained < 0) return null;
 
-function equivalentMarathonSec(run: Run, segment: WorkSegment, exponent: number): number {
-  const raceTimeSec = segment.durationSec * effortFactor(run);
-  return raceTimeSec * Math.pow(MARATHON_KM / segment.km, exponent);
-}
+  let totalKm = 0;
+  let totalSec = 0;
+  let runCount = 0;
+  let weeksTrained = 0;
+  for (let i = 0; i <= oldestTrained; i++) {
+    totalKm += km[i];
+    totalSec += sec[i];
+    runCount += count[i];
+    if (km[i] > 0) weeksTrained++;
+  }
 
-function runWeight(run: Run, segment: WorkSegment, asOf: string): number {
-  const daysAgo = daysBetween(run.date, asOf);
-  if (daysAgo < 0) return 0;
-  if (segment.km < MIN_SEGMENT_KM) return 0;
-  const recency = Math.pow(0.5, daysAgo / RECENCY_HALF_LIFE_DAYS);
-  // Longer efforts say more about marathon fitness; a 5k says less than a 30k.
-  const distanceRelevance = Math.min(1, Math.pow(segment.km / 21.1, 0.7));
-  const certainty = segment.logged ? 1 : INFERRED_SEGMENT_DISCOUNT;
-  return recency * distanceRelevance * TYPE_RELIABILITY[run.type] * certainty;
+  const weeksSpanned = oldestTrained + 1;
+  return {
+    weeklyKm: totalKm / weeksSpanned,
+    paceSecPerKm: totalSec / totalKm,
+    runCount,
+    weeksTrained,
+    weeksSpanned,
+  };
 }
 
 export function forecastMarathon(runs: Run[], asOf: string): Forecast | null {
-  const eligible = runs.filter(
-    (r) => r.distanceKm >= 3 && r.durationSec > 0 && daysBetween(r.date, asOf) >= 0
-  );
-  if (eligible.length === 0) return null;
+  const indices = trainingIndices(runs, asOf);
+  if (!indices || indices.runCount < MIN_RUNS_IN_WINDOW) return null;
 
-  const weeklyKm = weeklyVolumeKm(eligible, asOf);
-  const exponent = riegelExponent(weeklyKm);
-  const easyPace = easyPaceSecPerKm(eligible, asOf);
+  const paceSecPerKm = tandaRacePaceSecPerKm(indices.weeklyKm, indices.paceSecPerKm);
+  const expectedSec = paceSecPerKm * MARATHON_KM;
 
-  const weighted = eligible
-    .map((r) => {
-      const segment = workSegment(r, easyPace);
-      return { eq: equivalentMarathonSec(r, segment, exponent), w: runWeight(r, segment, asOf) };
-    })
-    .filter((x) => x.w > 0.001);
-  if (weighted.length === 0) return null;
+  // Thin evidence and mileage below the fitted range both widen the band, and
+  // they compound: a short log at low volume is the model at its least sure.
+  const untrainedWeeks = WINDOW_WEEKS - indices.weeksTrained;
+  const extrapolation =
+    1 + Math.max(0, CALIBRATED_MIN_WEEKLY_KM - indices.weeklyKm) / CALIBRATED_MIN_WEEKLY_KM;
+  const spread =
+    expectedSec *
+    BASE_SPREAD_SHARE *
+    (1 + untrainedWeeks * SPREAD_PER_UNTRAINED_WEEK) *
+    extrapolation;
 
-  const totalW = weighted.reduce((s, x) => s + x.w, 0);
-  const mean = weighted.reduce((s, x) => s + x.eq * x.w, 0) / totalW;
-  const variance = weighted.reduce((s, x) => s + x.w * Math.pow(x.eq - mean, 2), 0) / totalW;
-  const sigma = Math.sqrt(variance);
-
-  // Effective sample size — many low-weight runs count less than a few strong signals.
-  const ess = Math.pow(totalW, 2) / weighted.reduce((s, x) => s + x.w * x.w, 0);
-
-  // Spread blends observed scatter with a floor of model uncertainty (~2.5%),
-  // shrinking as the evidence base grows.
-  const baseUncertainty = mean * 0.025;
-  const spread = Math.max(sigma * 0.8, baseUncertainty) / Math.sqrt(Math.min(ess, 9) / 2);
-
-  const confidence: Forecast["confidence"] = ess >= 6 ? "high" : ess >= 3 ? "medium" : "low";
+  // Confidence needs both halves of the evidence: enough weeks of the window
+  // logged, and enough volume in them for the formula to be interpolating
+  // rather than reaching past the runners it was fitted on.
+  const confidence: Forecast["confidence"] =
+    indices.weeksTrained >= 6 && indices.weeklyKm >= CALIBRATED_MIN_WEEKLY_KM
+      ? "high"
+      : indices.weeksTrained >= 4 && indices.weeklyKm >= FAR_BELOW_CALIBRATION_KM
+        ? "medium"
+        : "low";
 
   return {
-    expectedSec: mean,
-    optimisticSec: mean - spread,
-    conservativeSec: mean + spread,
-    paceSecPerKm: mean / MARATHON_KM,
-    sampleSize: Math.round(ess),
-    exponent,
+    expectedSec,
+    optimisticSec: expectedSec - spread,
+    conservativeSec: expectedSec + spread,
+    paceSecPerKm,
+    weeklyKm: indices.weeklyKm,
+    trainingPaceSecPerKm: indices.paceSecPerKm,
+    runCount: indices.runCount,
+    weeksTrained: indices.weeksTrained,
+    weeksSpanned: indices.weeksSpanned,
     confidence,
   };
 }

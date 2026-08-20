@@ -56,13 +56,13 @@ function Dashboard() {
         </div>
 
         <div className="rise rise-5 grid gap-6 lg:grid-cols-[380px_1fr]">
-          <section id="run-form" className="panel h-fit p-6">
+          <section id="run-form" className="panel h-fit min-w-0 p-6">
             <h2 className="font-display mb-5 text-lg font-semibold">
               {editingRunId ? "Edit run" : "Log a run"}
             </h2>
             <RunForm />
           </section>
-          <section className="panel p-6">
+          <section className="panel min-w-0 p-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-lg font-semibold">Training log</h2>
               <AnalyzeButton />
@@ -73,8 +73,8 @@ function Dashboard() {
 
         <footer className="pt-8 text-center">
           <p className="text-xs text-[var(--paper-faint)]">
-            Forecasts use Riegel projection with effort, recency &amp; volume weighting.
-            Data stays in your browser.
+            Forecasts use the Tanda model — weekly volume and training pace over the last 8
+            weeks. Data stays in your browser.
           </p>
         </footer>
       </main>
